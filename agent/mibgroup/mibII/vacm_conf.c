@@ -977,6 +977,7 @@ vacm_create_simple(const char *token, char *confline,
 #endif
 
 #ifdef NETSNMP_TRANSPORT_UDPIPV6_DOMAIN
+#ifdef NETSNMP_ENABLE_IPV6
     if (parsetype == VACM_CREATE_SIMPLE_COMIPV6 ||
         parsetype == VACM_CREATE_SIMPLE_COM) {
         vacm_gen_com2sec(commcount, community, addressname,
@@ -984,6 +985,7 @@ vacm_create_simple(const char *token, char *confline,
                          secname, sizeof(secname),
                          view_ptr, sizeof(viewname), commversion, context);
     }
+#endif
 #endif
 #endif /* support for community based SNMP */
 
