@@ -157,6 +157,7 @@ CSRCS=	snmp_client.c mib.c parse.c snmp_api.c snmp.c 		\
 	snmp_secmod.c @security_src_list@ snmp_version.c        \
 	container_null.c container_list_ssll.c container_iterator.c \
 	ucd_compat.c		                                \
+	inet_ntop.c inet_pton.c					\
 	@other_src_list@ @crypto_files_c@        		\
 	dir_utils.c file_utils.c 	                        \
 	container.c container_binary_array.c	
@@ -176,6 +177,7 @@ OBJS=	snmp_client.o mib.o parse.o snmp_api.o snmp.o 		\
 	snmp_secmod.o @security_obj_list@ snmp_version.o        \
 	container_null.o container_list_ssll.o container_iterator.o \
 	ucd_compat.o                               		\
+	inet_ntop.o inet_pton.o					\
         @crypto_files_o@ @other_objs_list@ @LIBOBJS@ 		\
 	dir_utils.o file_utils.o 	                        \
 	container.o container_binary_array.o	
@@ -195,6 +197,7 @@ LOBJS=	snmp_client.lo mib.lo parse.lo snmp_api.lo snmp.lo 	\
 	snmp_secmod.lo @security_lobj_list@ snmp_version.lo     \
 	container.lo container_binary_array.lo			\
 	ucd_compat.lo		                                \
+	inet_ntop.lo inet_pton.lo				\
         @crypto_files_lo@ @other_lobjs_list@ @LTLIBOBJS@        \
 	dir_utils.lo file_utils.lo 	                        \
 	container_null.lo container_list_ssll.lo container_iterator.lo 
@@ -213,6 +216,7 @@ FTOBJS=	snmp_client.ft mib.ft parse.ft snmp_api.ft snmp.ft 	\
 	snmp_secmod.ft @security_ftobj_list@ snmp_version.ft    \
 	container.ft container_binary_array.ft	\
 	ucd_compat.ft		                             	\
+	inet_ntop.ft inet_pton.ft				\
         @other_ftobjs_list@                     		\
 	large_fd_set.ft cert_util.ft snmp_openssl.ft 		\
 	dir_utils.ft file_utils.ft 	                        \
