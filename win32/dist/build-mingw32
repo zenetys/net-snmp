@@ -1,0 +1,171 @@
+#!/bin/bash
+
+set -x
+
+VERSION=v5.9.1
+BUILD=1z
+PACKAGE=net-snmp-${VERSION#v}-${BUILD}.x86_64-w64-mingw32.exe
+
+if [[ $1 == -d ]]; then
+  TEMP=${2%/}
+  mkdir -p $TEMP
+else
+  TEMP=$(mktemp -d)
+fi
+
+if [[ ! -d $TEMP/.git ]]; then
+  git clone -n $PWD $TEMP
+fi
+
+git -C $TEMP checkout $VERSION
+
+# add local nsis
+mkdir -p $TEMP
+cp -vf $0.nsi $TEMP/net-snmp.nsi
+
+dockerid="net-snmp-${TEMP##*[./]}"
+dockerid="${dockerid,,}"
+
+# create image
+docker build -t $dockerid - <<EOF
+
+FROM fedora:34
+ENV TERM xterm
+RUN dnf -y update
+RUN dnf -y install make file
+RUN dnf -y install mingw64-libgnurx mingw64-openssl mingw64-zlib
+RUN dnf -y install mingw32-nsis
+
+EOF
+
+# run build via docker
+DOCKER_OPTS=(
+  -v $TEMP:/tmp
+  -w /tmp
+  -e VERSION=$VERSION
+  -e BUILD=$BUILD
+  --interactive
+  --sig-proxy=false
+)
+docker run ${DOCKER_OPTS[@]} $dockerid /bin/bash << "EOF"
+
+set -x
+
+CONFIGURE_OPTS=( 
+  --host=x86_64-w64-mingw32
+  --prefix="c:/net-snmp-5.9.1"
+  --with-mibdirs="c:/net-snmp-5.9.1/share/snmp/mibs"
+  --with-out-mib-modules=""
+  --with-mib-modules="winExtDLL"
+  --disable-embedded-perl
+  --without-perl-modules
+  --enable-static
+  --disable-shared
+  --with-defaults
+)
+
+CFLAGS="-D_FORTIFY_SOURCE=2 -fstack-protector-strong"
+
+grep -q End-Of-Log config.log ||
+  CFLAGS=$CFLAGS ./configure "${CONFIGURE_OPTS[@]}"
+
+[[ $? == 0 ]] && echo "End-Of-Log" >> config.log
+
+grep -q End-Of-Log make.log ||
+  make -j 4 | tee make.log
+
+[[ $? == 0 ]] && echo "End-Of-Log" >> make.log
+
+# make install INSTALL_PREFIX=/tmp prefix=/net-snmp
+
+prepare() {
+  set -e
+
+  install() {
+    eval "local last=\${$#}"
+    if [[ ${last:${#last}-1:1} == / ]]; then
+      /usr/bin/install -v -d "$last"
+    else
+      /usr/bin/install -v -d "${last%/*}"
+    fi
+    /usr/bin/install -v -D "$@" || exit 1
+  }
+
+  rm -rf $INSTDIR
+  mkdir $INSTDIR
+  
+  DLLSRCDIR=/usr/x86_64-w64-mingw32/sys-root/mingw/bin
+
+  install net-snmp.nsi $INSTDIR/
+  install win32/dist/installer/Add2Path.nsi $INSTDIR/
+  install win32/dist/installer/SetEnVar.nsi $INSTDIR/
+  install win32/dist/README.txt $INSTDIR/
+  install COPYING $INSTDIR/docs/
+  install $DLLSRCDIR/zlib1.dll $INSTDIR/bin/
+  install $DLLSRCDIR/libgnurx-0.dll $INSTDIR/bin/
+  install $DLLSRCDIR/libcrypto-1_1-x64.dll $INSTDIR/bin/
+  install $DLLSRCDIR/libssp-0.dll $INSTDIR/bin/
+  install $DLLSRCDIR/libwinpthread-1.dll $INSTDIR/bin/
+  install apps/*.exe $INSTDIR/bin/
+  install apps/*/*.exe $INSTDIR/bin/
+  install agent/snmpd.exe $INSTDIR/bin/
+  install agent/snmpd.exe $INSTDIR/bin/
+  install local/mib2c $INSTDIR/bin/
+  install local/snmpconf $INSTDIR/bin/
+  install local/traptoemail $INSTDIR/bin/
+  install win32/local/mib2c.bat $INSTDIR/bin/
+  install win32/local/snmpconf.bat $INSTDIR/bin/
+  install win32/local/traptoemail.bat $INSTDIR/bin/
+  install mibs/*.* $INSTDIR/share/snmp/mibs/
+  install local/mib2c.*.conf $INSTDIR/share/snmp/
+  install local/mib2c-conf.d/*.* $INSTDIR/share/snmp/mib2c-data/
+  install local/snmpconf.dir/snmp-data/* $INSTDIR/share/snmp/snmpconf-data/snmp-data/
+  install local/snmpconf.dir/snmpd-data/* $INSTDIR/share/snmp/snmpconf-data/snmpd-data/
+  install local/snmpconf.dir/snmpd-data/* $INSTDIR/share/snmp/snmpconf-data/snmptrapd-data/
+  cp -a include $INSTDIR/
+  install snmplib/.libs/*.a $INSTDIR/lib/
+  install apps/.libs/*.a $INSTDIR/lib/
+  install agent/.libs/*.a $INSTDIR/lib/
+  install agent/helpers/.libs/*.a $INSTDIR/lib/
+  
+  set +e
+}
+
+INSTDIR=/tmp/win32-install
+
+grep -q "End-Of-Log" prepare.log ||
+  prepare | tee prepare.log
+
+[[ $? == 0 ]] || echo "End-Of-Log" >> prepare.log
+  
+V=( ${VERSION//./$IFS} )
+
+grep -q "End-Of-Log" makensis.log ||
+  makensis \
+    -DPRODUCT_MAJ_VERSION=${V[0]#v} \
+    -DPRODUCT_MIN_VERSION=${V[1]} \
+    -DPRODUCT_REVISION=${V[2]} \
+    -DPRODUCT_EXE_VERSION=$BUILD \
+    -DINSTALLER_PLATFORM=x86_64-w64-mingw32 \
+    $INSTDIR/net-snmp.nsi | tee makensis.log
+
+[[ $? == 0 ]] || echo "End-Of-Log" >> makensis.log
+
+
+EOF
+
+echo
+echo "To enter in build docker, type:"
+echo "  docker run -v $TEMP:/tmp -w /tmp -ti $dockerid /bin/bash"
+echo
+
+if [[ -e $TEMP/win32-install/$PACKAGE ]]; then
+  cp -v $TEMP/win32-install/$PACKAGE $PWD/
+  echo "Result: $PACKAGE"
+else
+  echo "no package built"
+  exit 1
+fi
+
+
+
